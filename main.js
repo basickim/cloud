@@ -2,7 +2,6 @@ const AWS = require('aws-sdk');
 const dotenv = require('dotenv');
 dotenv.config();
 
-console.log(process.env.SECRET_ACCESS_KEY);
 // aws region 및 자격증명 설정
 AWS.config.update({
    accessKeyId: process.env.ACCESS_KEY,
