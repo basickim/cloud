@@ -21,6 +21,7 @@ AWS.config.update({
 // let state = true;
 
 const ec2 = new AWS.EC2();
+const iam = new AWS.IAM({apiVersion: '2010-05-08'});
 
 let number;
 
@@ -36,7 +37,10 @@ function main() {
         console.log("  3. start instance               4. available regions      ");
         console.log("  5. stop instance                6. create instance        ");
         console.log("  7. reboot instance              8. list images            ");
-        console.log("                                 99. quit                   ");
+        console.log("  9. list keypair                10. make keypair           ");
+        console.log("  11. delete keypair             12. create IAM user          ");
+        console.log("  13. list IAM user              14. update IAM user        ");
+        console.log("  15. delete IAM user            99. quit                   ");
         console.log("------------------------------------------------------------");
         
         readline.question('Enter an integer: ', num => {
@@ -71,7 +75,9 @@ function main() {
                     
                 case 6:
                     readline.question("Enter ami id: ", id => {
-                        createInstance(id);
+                        readline.question("Enter keypair name: ", keyname => {
+                            createInstance(id, keyname);
+                        });
                     });
                     break; 
 
@@ -84,7 +90,47 @@ function main() {
                 case 8:
                     listImages();
                     break;
+                
+                case 9:
+                    keypair_list();
+                    break;
 
+                case 10:
+                    readline.question("Enter keypair name: ", name => {
+                        make_keypair(name);
+                    });
+                    break;
+
+                case 11:
+                     readline.question("Enter keypair name: ", name => {
+                        delete_keypair(name);
+                    });
+                    break;
+
+                case 12:
+                    readline.question("Enter IAM user name: ", name => {
+                        create_user(name);
+                    });
+                    break;
+                
+                case 13:
+                    list_user();
+                    break;
+                
+                case 14:
+                    readline.question("Enter origin IAM user name: ", origin => {
+                        readline.question("Enter changed IAM user name: ", changed => {
+                            update_user(origin, changed);
+                        });
+                    });
+                    break;
+                 
+                case 15:
+                    readline.question("Enter delete IAM user name: ", name => {
+                        delete_user(name);
+                    });
+                    break;
+                
                 case 99:
                     console.log("bye! ");
                     readline.close();
@@ -211,11 +257,11 @@ function stopInstance(instance_id){
 }
 
 
-function createInstance(ami_id) {
+function createInstance(ami_id, keyname) {
     var instanceParams = {
         ImageId: ami_id, 
         InstanceType: 't2.micro',
-        KeyName: 'term_project',
+        KeyName: keyname,
         MinCount: 1,
         MaxCount: 1
      };
@@ -282,4 +328,126 @@ function listImages() {
       })
 }
 
+function keypair_list(){
+    ec2.describeKeyPairs().promise().then((data) => {
+        let key = data.KeyPairs;
+        key.forEach((k) => {
+            console.log("[KeyPairId] " + k.KeyPairId + ", [KeyName] " + k.KeyName + ", [KeyType] " + k.KeyType);
+        })
+    }).then(setTimeout(main, 1000)).catch((err) => {
+        console.log("Error", err);
+    })
+}
+
+function make_keypair(keyname){
+
+var params = {
+    KeyName: keyname
+ };
+ 
+ // Create the key pair
+ ec2.createKeyPair(params, function(err, data) {
+    if (err) {
+       console.log("Error", err);
+    } else {
+       console.log("Key Pair Created!");
+    }
+    setTimeout(main, 1000);
+ });
+}
+
+function delete_keypair(keyname){
+
+var params = {
+    KeyName: keyname
+ };
+ 
+ // Delete the key pair
+ ec2.deleteKeyPair(params, function(err, data) {
+    if (err) {
+       console.log("Error", err);
+    } else {
+       console.log("Key Pair Deleted!");
+    }
+    setTimeout(main, 1000);
+ });
+}
+
+function create_user(name){
+    var params = {
+      UserName: name
+    };
+    
+    iam.getUser(params, function(err, data) {
+      if (err && err.code === 'NoSuchEntity') {
+        iam.createUser(params, function(err, data) {
+          if (err) {
+            console.log("Error", err);
+          } else {
+            console.log("Successfully made user!");
+            
+          }
+        });
+        setTimeout(main, 1000);
+      } else {
+        console.log("User " + name + " already exists", data.User.UserId);
+        setTimeout(main, 1000);
+      }
+ });
+}
+
+function list_user(){
+
+var params = {
+    MaxItems: 10
+  };
+  
+  iam.listUsers(params, function(err, data) {
+    if (err) {
+      console.log("Error", err);
+    } else {
+      var users = data.Users || [];
+      users.forEach(function(user) {
+        console.log("[User] " + user.UserName + ", [created] ", user.CreateDate);
+      });
+    }
+    setTimeout(main, 1000);
+  });
+}
+
+function update_user(origin, change){
+    var params = {
+        UserName: origin,
+        NewUserName: change
+      };
+      
+      iam.updateUser(params, function(err, data) {
+        if (err) {
+          console.log("Error", err);
+        } else {
+          console.log("Successlly changed!");
+        }
+        setTimeout(main, 1000);
+      });
+}
+
+function delete_user(name) {
+    var params = {
+        UserName: name
+      };
+      
+      iam.getUser(params, function(err, data) {
+        if (err && err.code === 'NoSuchEntity') {
+          console.log("User " + name + " does not exist.");
+        } else {
+          iam.deleteUser(params, function(err, data) {
+            if (err) {
+              console.log("Error", err);
+            } else {
+              console.log("Successlly deleted!");
+            }
+          });
+        } setTimeout(main, 1000);
+      });
+}
 setTimeout(main, 1000);
